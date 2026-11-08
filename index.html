@@ -6,158 +6,395 @@
 <title>Three routes to one vial</title>
 <!--
   "Three routes to one vial": the interactive widget for MadPharma's post on the HHS peptide policy (November 2026).
-  Self-contained: no external scripts or fonts. Every cell carries its source.
-  "Not required" means the route sets no such check; it does not mean nobody checks.
-  Sources: HHS peptide enforcement-discretion policy and Appendix B; FDA Pharmacy Compounding Advisory Committee
-  briefing documents for BPC-157, Semax and epitalon (July 2026); 21 CFR 314.80 and 314.126.
+  For three routes and three peptides, it shows which of seven checks is met, partly met or not met,
+  with the record and the source behind each answer. Self-contained: no external scripts or fonts.
+  Met: the route requires the check and the record shows it done. Partly met: only part is required, or it
+  rests on the supplier's certificate, or the record shows only part. Not met: neither, or, for the FDA route,
+  no approved product exists. No FDA-approved drug contains BPC-157, Semax or epitalon.
+  Sources: HHS peptide enforcement-discretion policy (conditions 3-5, testing standard, Appendix B) and its notice,
+  91 FR 68526; FDA Pharmacy Compounding Advisory Committee briefing documents for BPC-157, Semax and epitalon
+  (July 2026); ICH Q3A(R2); 21 CFR 211.167, 314.50, 314.80, 314.125 and 314.126; CBS News, 28 Oct 2026.
 -->
 <style>
   :root {
     --bg: #fbfaf7; --fg: #1f1d1a; --muted: #6b665e; --line: #ddd8cf; --card: #ffffff;
-    --accent: #7a4b2a; --none: #9b3b2f; --part: #8a6a12; --yes: #2f6b45; --chip: #efebe4;
+    --accent: #7a4b2a; --sel: #f1e6da; --chip: #efebe4;
+    --not: #9b3b2f; --part: #8a6a12; --met: #2f6b45;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
       --bg: #181715; --fg: #ece8e1; --muted: #a39d93; --line: #3a3732; --card: #22201d;
-      --accent: #d29a6c; --none: #e0806f; --part: #d8b85a; --yes: #7cc196; --chip: #2d2a26;
+      --accent: #d29a6c; --sel: #36291e; --chip: #2d2a26;
+      --not: #e0806f; --part: #d8b85a; --met: #7cc196;
     }
   }
   :root[data-theme="dark"] {
     --bg: #181715; --fg: #ece8e1; --muted: #a39d93; --line: #3a3732; --card: #22201d;
-    --accent: #d29a6c; --none: #e0806f; --part: #d8b85a; --yes: #7cc196; --chip: #2d2a26;
+    --accent: #d29a6c; --sel: #36291e; --chip: #2d2a26;
+    --not: #e0806f; --part: #d8b85a; --met: #7cc196;
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--fg);
          font: 16px/1.5 Georgia, "Times New Roman", serif; }
   main { max-width: 760px; margin: 0 auto; padding: 24px 16px 40px; }
   h1 { font-size: 1.4rem; margin: 0 0 4px; }
-  .sub { color: var(--muted); margin: 0 0 20px; font-size: .95rem; }
+  h2 { font: 600 1rem/1.35 system-ui, sans-serif; margin: 0; }
+  .sub { color: var(--muted); margin: 0 0 16px; font-size: .95rem; }
+  .sans { font-family: system-ui, sans-serif; }
   .label { font: 600 .75rem/1.2 system-ui, sans-serif; letter-spacing: .06em; text-transform: uppercase;
            color: var(--muted); margin: 18px 0 8px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  /* status marks: an empty ring, a half-filled ring, a full disc */
+  .dot { display: inline-block; width: 13px; height: 13px; border-radius: 50%; border: 2px solid currentColor;
+         vertical-align: -1px; flex: none; }
+  .s-not { color: var(--not); }
+  .s-part { color: var(--part); }
+  .s-met { color: var(--met); }
+  .dot.s-part { background: linear-gradient(90deg, currentColor 50%, transparent 50%); }
+  .dot.s-met { background: currentColor; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font: .85rem/1.3 system-ui, sans-serif; margin: 0 0 8px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; color: var(--fg); }
+
+  /* overview grid */
+  table.grid { width: 100%; border-collapse: collapse; table-layout: fixed;
+               font: .78rem/1.2 system-ui, sans-serif; }
+  .grid caption { text-align: left; color: var(--muted); font-size: .8rem; padding: 0 0 6px; caption-side: top; }
+  .grid col.c-check { width: 31%; }
+  .grid th, .grid td { padding: 0; text-align: center; font-weight: 500; }
+  .grid thead th { color: var(--muted); padding: 4px 1px; vertical-align: bottom; }
+  .grid th.grp { color: var(--fg); font-weight: 600; border-bottom: 1px solid var(--line); line-height: 1.15; }
+  .grid th.corner { text-align: left; }
+  .grid abbr { text-decoration: none; }
+  .grid th.pep { font-size: .68rem; padding: 4px 0; }
+  .grid th.rowh { text-align: left; padding: 0 6px 0 0; color: var(--fg); }
+  .grid tbody tr { border-top: 1px solid var(--line); }
+  .grid .first { border-left: 1px solid var(--line); }
+  .grid .sel { background: var(--sel); }
+  .grid th.grp.sel { background: transparent; color: var(--accent); }
+  .grid button.cell { display: inline-flex; align-items: center; justify-content: center; width: 100%; min-height: 34px;
+                      padding: 0; margin: 0; background: none; border: 0; border-radius: 6px; cursor: pointer; font: inherit; }
+  .grid button.cell:hover { background: var(--chip); }
+  .grid button.cell:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .gridnote { margin: 8px 0 0; font-size: .92rem; }
+
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
   button.chip { font: 500 .9rem/1.2 system-ui, sans-serif; color: var(--fg); background: var(--chip);
                 border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; cursor: pointer; }
   button.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--bg); }
   button.chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .peptide { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
-             margin-top: 12px; font-size: .95rem; }
-  .peptide b { font-family: system-ui, sans-serif; font-size: .85rem; }
+
+  .pair { margin-top: 22px; }
+  .counts { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 6px 0 0; font: .88rem/1.3 system-ui, sans-serif; }
+  .counts span { display: inline-flex; align-items: center; gap: 6px; }
+  .box { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+         margin-top: 12px; font-size: .95rem; }
+  .box p { margin: 0; }
+  .box p + p { margin-top: 8px; }
+  .box b { font-family: system-ui, sans-serif; font-size: .85rem; }
   ul.checks { list-style: none; padding: 0; margin: 12px 0 0; }
   ul.checks li { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
-                 padding: 12px 14px; margin-bottom: 8px; }
+                 padding: 12px 14px; margin-bottom: 8px; transition: box-shadow .4s; }
+  ul.checks li.flash { box-shadow: 0 0 0 2px var(--accent); }
   .row { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; flex-wrap: wrap; }
   .what { font: 600 .95rem/1.3 system-ui, sans-serif; }
-  .status { font: 600 .8rem/1.2 system-ui, sans-serif; padding: 3px 8px; border-radius: 6px;
-            border: 1px solid currentColor; white-space: nowrap; }
-  .s-none { color: var(--none); } .s-part { color: var(--part); } .s-yes { color: var(--yes); }
+  .status { display: inline-flex; align-items: center; gap: 6px; font: 600 .8rem/1.2 system-ui, sans-serif;
+            padding: 3px 8px; border-radius: 6px; border: 1px solid currentColor; white-space: nowrap; }
   .detail { margin: 6px 0 0; font-size: .95rem; }
   .src { margin: 4px 0 0; color: var(--muted); font: .78rem/1.4 system-ui, sans-serif; }
+  .box p.src { margin-top: 4px; }
   .foot { color: var(--muted); font: .8rem/1.5 system-ui, sans-serif; margin-top: 18px; }
+  .foot p { margin: 0 0 8px; }
+  .foot a { color: inherit; }
+  @media (prefers-reduced-motion: reduce) { ul.checks li { transition: none; } }
 </style>
 </head>
 <body>
 <main>
   <h1>Three routes to one vial</h1>
-  <p class="sub">The same peptide can reach a patient three ways. Pick a route to see what each one requires someone to check, and who.</p>
+  <p class="sub">The same peptide can reach a patient three ways. For BPC-157, Semax and epitalon, this shows which of seven checks each route meets, and the record behind each answer.</p>
+
+  <div class="legend">
+    <span><i class="dot s-met" aria-hidden="true"></i>Met</span>
+    <span><i class="dot s-part" aria-hidden="true"></i>Partly met</span>
+    <span><i class="dot s-not" aria-hidden="true"></i>Not met</span>
+  </div>
+  <table class="grid" id="grid">
+    <caption>All nine combinations. Select a mark to see the record behind it.</caption>
+    <colgroup><col class="c-check"><col span="9"></colgroup>
+  </table>
+  <p class="gridnote" id="gridnote"></p>
 
   <div class="label" id="route-label">Route</div>
   <div class="chips" role="group" aria-labelledby="route-label" id="routes"></div>
-
   <div class="label" id="pep-label">Peptide</div>
   <div class="chips" role="group" aria-labelledby="pep-label" id="peptides"></div>
-  <div class="peptide" id="peptide-box" aria-live="polite"></div>
 
-  <ul class="checks" id="checks" aria-live="polite"></ul>
+  <section class="pair" aria-labelledby="pair-title">
+    <h2 id="pair-title"></h2>
+    <p class="counts" id="counts"></p>
+    <p class="sr" id="live" aria-live="polite"></p>
+    <div class="box" id="context"></div>
+    <ul class="checks" id="checks"></ul>
+  </section>
+  <noscript><p>This table needs JavaScript to run.</p></noscript>
 
-  <p class="foot">"Not required" means the route sets no such check. It doesn't mean nobody ever checks. As of 4 November 2026. Sources: HHS enforcement-discretion policy and Appendix B; FDA briefing documents, Pharmacy Compounding Advisory Committee, 23–24 July 2026; 21 CFR 314.80 and 314.126.</p>
+  <div class="foot">
+    <p><b>Met</b> means the route requires the check and the record shows it done. <b>Partly met</b> means only part of it is required, or it rests on the supplier's certificate, or the record shows only part. <b>Not met</b> means neither, or, on the FDA route, that no approved product exists. "Not required" means the route sets no such check, not that nobody ever checks. Page numbers are the FDA documents' own. As of 8 November 2026.</p>
+    <p>Sources: <a href="https://www.hhs.gov/sites/default/files/hhs-503a-peptide-enforcement-discretion-policy-appendix-b.pdf">HHS enforcement-discretion policy</a> (conditions 3–5, testing standard, Appendix B) and its <a href="https://www.federalregister.gov/documents/2026/10/30/2026-22192/enforcement-discretion-policy-regarding-503a-compounding-using-certain-peptide-bulk-drug-substances">notice, 91 FR 68526</a>; FDA briefing documents for the Pharmacy Compounding Advisory Committee, 23–24 July 2026, on <a href="https://www.fda.gov/media/193343/download">BPC-157</a>, <a href="https://www.fda.gov/media/193348/download">Semax</a> and <a href="https://www.fda.gov/media/193345/download">epitalon</a>; <a href="https://ema.europa.eu/en/documents/scientific-guideline/ich-q-3-r2-impurities-new-drug-substances-step-5_en.pdf">ICH Q3A(R2)</a>; 21 CFR <a href="https://www.law.cornell.edu/cfr/text/21/211.167">211.167</a>, <a href="https://www.law.cornell.edu/cfr/text/21/314.50">314.50</a>, <a href="https://www.law.cornell.edu/cfr/text/21/314.80">314.80</a>, <a href="https://www.law.cornell.edu/cfr/text/21/314.125">314.125</a> and <a href="https://www.law.cornell.edu/cfr/text/21/314.126">314.126</a>; <a href="https://www.cbsnews.com/news/rfk-jr-to-ease-access-unapproved-peptides-draft-policy/">CBS News, 28 Oct 2026</a>.</p>
+  </div>
 </main>
 <script>
 const ROUTES = {
-  ruo: "“Research purposes only” website",
-  hhs: "Compounded under the HHS policy",
-  fda: "FDA-approved drug"
+  ruo: { name: "“Research purposes only” website", short: "Research-only site" },
+  hhs: { name: "Compounded under the HHS policy", short: "HHS policy" },
+  fda: { name: "FDA-approved drug", short: "FDA-approved" }
 };
-
-// status: none | part | yes
-const CHECKS = [
-  { what: "Identity of the substance",
-    ruo: { s: "none", t: "Not required. FDA found sites that don't say whether they sell the base or a salt.", src: "FDA Semax briefing, p. 22" },
-    hhs: { s: "part", t: "On the supplier's certificate: orthogonal methods, “verified to be the BDS listed.” I found no requirement that the pharmacy retest each lot.", src: "HHS policy, condition 3 and testing standard" },
-    fda: { s: "yes", t: "Set in the approved application, against an agreed specification.", src: "General description; see the post" } },
-  { what: "Impurities",
-    ruo: { s: "none", t: "Not required.", src: "—" },
-    hhs: { s: "part", t: "Criterion: “Comply with ICH Q3A USP <1503>.” ICH Q3A says it doesn't cover peptides.", src: "HHS testing standard; ICH Q3A(R2), section 1" },
-    fda: { s: "yes", t: "Reviewed as part of the application.", src: "General description; see the post" } },
-  { what: "Bacterial endotoxin",
-    ruo: { s: "none", t: "Not required.", src: "—" },
-    hhs: { s: "part", t: "On the certificate: “Comply with USP <85>.”", src: "HHS testing standard" },
-    fda: { s: "yes", t: "Part of the product specification for injectables.", src: "General description; see the post" } },
-  { what: "Evidence that it works",
-    ruo: { s: "none", t: "Not required.", src: "—" },
-    hhs: { s: "none", t: "Not required. HHS: the policy does not “establish clinical safety and effectiveness.”", src: "HHS spokesperson to CBS News, 28 Oct 2026" },
-    fda: { s: "yes", t: "Adequate and well-controlled studies, designed “to distinguish the effect of a drug from other influences.”", src: "21 CFR 314.126(a)" } },
-  { what: "Human safety data",
-    ruo: { s: "none", t: "Not required.", src: "—" },
-    hhs: { s: "none", t: "Not required. FDA's reviewers found none for epitalon, and none for BPC-157 by the routes now allowed.", src: "FDA epitalon briefing, p. 38; BPC-157 briefing, pp. 43–44" },
-    fda: { s: "yes", t: "Reviewed before approval.", src: "General description; see the post" } },
-  { what: "Who makes the powder",
-    ruo: { s: "none", t: "Unknown to the buyer.", src: "—" },
-    hhs: { s: "part", t: "The original manufacturer must be FDA-registered, follow CGMP and be named on the certificate. I found no public list of registered makers for these peptides.", src: "HHS policy, condition 4" },
-    fda: { s: "yes", t: "Named in the application and subject to inspection.", src: "General description; see the post" } },
-  { what: "Adverse-event reporting",
-    ruo: { s: "none", t: "No duty. The one Semax report FDA found came from a consumer.", src: "FDA Semax briefing, p. 38" },
-    hhs: { s: "part", t: "Serious events “regardless of whether or not considered drug related,” to MedWatch. No deadline in the text. FDA: 503A compounders “generally do not report.”", src: "HHS policy, condition 5; FDA briefings, fn 64/66/85" },
-    fda: { s: "yes", t: "Serious and unexpected events within 15 calendar days; periodic reports.", src: "21 CFR 314.80(c)" } }
-];
 
 const PEPTIDES = {
-  bpc: { name: "BPC-157", form: "acetate", routes: "under the skin, into muscle, by mouth, on the skin",
-         humans: "About 81 people in five studies, by enema, joint, bladder-wall and IV injection. None by any route the policy allows.",
-         src: "HHS Appendix B; FDA BPC-157 briefing, p. 42" },
-  semax: { name: "Semax", form: "free base", routes: "in the nose",
-         humans: "33–47 healthy adults, 69 adults with conditions and 451 children in the references FDA assessed, all by the nose. FDA set aside four Russian stroke papers as untranslated.",
-         src: "HHS Appendix B; FDA Semax briefing, pp. 24, 38" },
-  epi: { name: "Epitalon", form: "acetate", routes: "injection under the skin or into muscle, “in intermittent courses”",
-         humans: "FDA found no clinical studies of its safety in humans. Its one randomised trial used a sublingual spray.",
-         src: "HHS Appendix B; FDA epitalon briefing, pp. 26, 38" }
+  bpc:   { name: "BPC-157", short: "BPC", form: "acetate", routes: "under the skin, into muscle, by mouth, on the skin" },
+  semax: { name: "Semax", short: "Sem", form: "free base", routes: "in the nose" },
+  epi:   { name: "Epitalon", short: "Epi", form: "acetate", routes: "under the skin or into muscle, “dispensed in intermittent courses”" }
 };
 
-const STATUS_TEXT = { none: "Not required", part: "Partly", yes: "Required" };
-let route = "hhs", pep = "semax";
+const STATUS = { met: "Met", part: "Partly met", not: "Not met" };
 
-function chip(container, key, label, isOn, onClick) {
-  const b = document.createElement("button");
-  b.className = "chip"; b.type = "button"; b.textContent = label;
+// What the route is, for each peptide: [text, source]
+const NOTES = {
+  ruo: {
+    bpc:   ["The route itself sets none of these checks. One BPC-157 product in FDA's file was “labeled for ‘research purposes only.’”", "FDA BPC-157 briefing, p. 41"],
+    semax: ["The route itself sets none of these checks. One online retailer FDA found offers Semax “for research purposes only.”", "FDA Semax briefing, p. 22"],
+    epi:   ["The route itself sets none of these checks. Several sites FDA found say the product “is intended for research use only.”", "FDA epitalon briefing, p. 23"]
+  },
+  hhs: {
+    all:   ["A state-licensed pharmacy, federal facility or licensed physician compounds it from bulk powder that must come with a certificate of analysis. HHS says the policy does not “grant FDA approval or establish clinical safety and effectiveness.”", "HHS notice, 91 FR 68526; HHS policy, condition 3; HHS spokesperson to CBS News, 28 Oct 2026"]
+  },
+  fda: {
+    bpc:   ["No FDA-approved drug contains BPC-157: FDA's reviewers wrote that neither form “is a component of an FDA-approved drug.” So no check is met, and each one below says what approval would require.", "FDA BPC-157 briefing, p. 9"],
+    semax: ["No FDA-approved drug contains Semax: FDA's reviewers wrote that neither form “is a component of an FDA-approved drug.” So no check is met, and each one below says what approval would require.", "FDA Semax briefing, p. 8"],
+    epi:   ["No FDA-approved drug contains epitalon: FDA's reviewers wrote that neither form “is a component of an FDA-approved drug.” So no check is met, and each one below says what approval would require.", "FDA epitalon briefing, p. 9"]
+  }
+};
+
+// Each cell: [status, what the record shows, source]. "all" applies to every peptide on that route.
+const CHECKS = [
+  { key: "identity", what: "Identity of the substance", short: "Identity",
+    ruo: {
+      bpc:   ["not", "Not required. FDA has encountered “multiple salts, and derivatives, including different active moieties, sold commercially under the same common name.”", "FDA BPC-157 briefing, p. 9"],
+      semax: ["not", "Not required. FDA: “None of the websites searched indicate whether their marketed products contain the base or a salt or ester of semax.”", "FDA Semax briefing, p. 22"],
+      epi:   ["not", "Not required. In the sources FDA reviewed, websites among them, it was “often unclear” whether epitalon meant the salt or the free base.", "FDA epitalon briefing, p. 23"] },
+    hhs: {
+      bpc:   ["part", "Required on the supplier's certificate, by “orthogonal analytical methods.” I found no duty on the pharmacy to retest. FDA judged BPC-157 acetate “not well-characterized,” in part for naming that doesn't follow standard nomenclature.", "HHS policy, condition 3 and testing standard; FDA BPC-157 briefing, p. 21"],
+      semax: ["part", "Required on the supplier's certificate, by “orthogonal analytical methods.” I found no duty on the pharmacy to retest. Both certificates in the nominations were titled for semax acetate but gave the free base's CAS number and formula. The policy covers the free base.", "HHS policy, condition 3 and testing standard; FDA Semax briefing, p. 10"],
+      epi:   ["part", "Required on the supplier's certificate, by “orthogonal analytical methods.” I found no duty on the pharmacy to retest. The nominator's certificate for epitalon acetate listed an identification test, and FDA still judged the acetate “not well-characterized.”", "HHS policy, condition 3 and testing standard; FDA epitalon briefing, pp. 16, 20"] },
+    fda: {
+      all:   ["not", "Approval would require “a full description of the drug substance including its physical and chemical characteristics,” and specifications to ensure its identity.", "21 CFR 314.50(d)(1)(i)"] } },
+
+  { key: "impurities", what: "Impurities", short: "Impurities",
+    ruo: {
+      bpc:   ["not", "Not required. FDA found that most certificates for BPC-157 acetate “only contain purity testing.” Its example came from a peptide seller's website.", "FDA BPC-157 briefing, p. 19"],
+      semax: ["not", "Not required. The certificate for semax free base that FDA found on a supplier's website gives identity, amino acid analysis and purity, but no impurity limits or results.", "FDA Semax briefing, pp. 13–14"],
+      epi:   ["not", "Not required. FDA “cannot rule out the potential for immunogenicity” from epitalon's impurities and aggregates, “especially when administered by injection.”", "FDA epitalon briefing, p. 19"] },
+    hhs: {
+      bpc:   ["part", "Criterion: “Comply with ICH Q3A USP <1503>,” which pairs a guideline that excludes peptides with the USP chapter on synthetic peptides. Of the two certificates in the nominations, one listed impurities that “were not identified or specified”; the other gave purity only.", "HHS testing standard; ICH Q3A(R2), section 1; FDA BPC-157 briefing, p. 19"],
+      semax: ["part", "Criterion: “Comply with ICH Q3A USP <1503>,” which pairs a guideline that excludes peptides with the USP chapter on synthetic peptides. The nominations had no certificate for the free base. On the acetate ones, single impurities could reach 1.0% or 2.0%, with “no information regarding the nature” of them.", "HHS testing standard; ICH Q3A(R2), section 1; FDA Semax briefing, pp. 13, 18"],
+      epi:   ["part", "Criterion: “Comply with ICH Q3A USP <1503>,” which pairs a guideline that excludes peptides with the USP chapter on synthetic peptides. The nominator's certificate allowed single impurities up to 1.0%, with “no information regarding the nature of individual impurities.”", "HHS testing standard; ICH Q3A(R2), section 1; FDA epitalon briefing, p. 18"] },
+    fda: {
+      all:   ["not", "Approval would require specifications to ensure the drug substance's purity, with “tests, analytical procedures, and acceptance criteria.”", "21 CFR 314.50(d)(1)(i)"] } },
+
+  { key: "endotoxin", what: "Bacterial endotoxin", short: "Endotoxin",
+    ruo: {
+      bpc:   ["not", "Not required. FDA calls the endotoxin test “a critical quality attribute” for a substance meant for injection, and the research-only product in one of its reports was injected twice a day.", "FDA BPC-157 briefing, pp. 17, 41"],
+      semax: ["not", "Not required. FDA calls endotoxin testing critical for injections, and one research-only seller lists injection under the skin as a common way to take Semax.", "FDA Semax briefing, pp. 11, 22"],
+      epi:   ["not", "Not required. FDA found websites selling epitalon in vials, and calls endotoxin load “a critical BDS quality control attribute for an injection product.”", "FDA epitalon briefing, pp. 20, 23"] },
+    hhs: {
+      bpc:   ["part", "Required on the supplier's certificate: “Comply with USP <85>.” FDA found no endotoxin test on the certificates in the BPC-157 nominations.", "HHS testing standard; FDA BPC-157 briefing, pp. 17, 21"],
+      semax: ["part", "Required on the supplier's certificate: “Comply with USP <85>.” With no free-base certificate in the nominations, FDA couldn't tell whether endotoxin tests are in place, and found none in the literature.", "HHS testing standard; FDA Semax briefing, p. 15"],
+      epi:   ["part", "Required on the supplier's certificate: “Comply with USP <85>.” The nominator's certificate for epitalon acetate mentioned no endotoxin test.", "HHS testing standard; FDA epitalon briefing, p. 20"] },
+    fda: {
+      bpc:   ["not", "Approval would require a maker that tests each batch “purporting to be sterile and/or pyrogen-free,” and acceptance criteria for “sterility” in the application.", "21 CFR 211.167(a); 314.50(d)(1)(ii)"],
+      semax: ["not", "Approval would require specifications for the finished product, with tests and acceptance criteria. For a nasal spray, FDA counts “microbial quality” among the critical attributes; endotoxin testing is critical for injections.", "21 CFR 314.50(d)(1)(ii); FDA Semax briefing, p. 11"],
+      epi:   ["not", "Approval would require a maker that tests each batch “purporting to be sterile and/or pyrogen-free,” and acceptance criteria for “sterility” in the application.", "21 CFR 211.167(a); 314.50(d)(1)(ii)"] } },
+
+  { key: "works", what: "Evidence that it works", short: "Evidence it works",
+    ruo: {
+      bpc:   ["not", "Not required. FDA found one randomised trial, a 2005 meeting abstract on enemas for ulcerative colitis, with no significant difference between the groups.", "FDA BPC-157 briefing, p. 27"],
+      semax: ["not", "Not required. FDA found “insufficient evidence of effectiveness” for each use it reviewed: cerebral ischaemia, migraine and trigeminal neuralgia.", "FDA Semax briefing, pp. 25–28"],
+      epi:   ["not", "Not required. FDA found “a lack of evidence” for insomnia. The one randomised trial, of a sublingual spray, measured a melatonin metabolite in urine.", "FDA epitalon briefing, pp. 26, 28"] },
+    hhs: {
+      bpc:   ["not", "Not required. FDA found one randomised trial, a 2005 meeting abstract on enemas for colitis with no significant difference, and no study in people by the routes the policy allows.", "FDA BPC-157 briefing, pp. 27, 42–44"],
+      semax: ["not", "Not required. FDA found “insufficient evidence of effectiveness” for each use it reviewed, and set aside four Russian papers on cerebral ischaemia because they weren't in English.", "FDA Semax briefing, pp. 24–28"],
+      epi:   ["not", "Not required. FDA found “a lack of evidence” for insomnia. The one randomised trial, of a sublingual spray, measured a melatonin metabolite, not a clinical outcome.", "FDA epitalon briefing, pp. 26, 28"] },
+    fda: {
+      all:   ["not", "Approval would require “substantial evidence” from adequate and well-controlled studies, designed “to distinguish the effect of a drug from other influences.”", "21 CFR 314.126(a)"] } },
+
+  { key: "safety", what: "Human safety data", short: "Safety data",
+    ruo: {
+      bpc:   ["not", "Not required. FDA found about 81 people dosed in five studies, by enema, joint, bladder-wall and IV injection. None was injected under the skin, as the research-only product in its report was.", "FDA BPC-157 briefing, pp. 41–42"],
+      semax: ["part", "Not required, but some data exist. The studies FDA assessed gave Semax through the nose only, and FDA found the information “insufficient.” One research-only seller lists injection too, which has no safety data.", "FDA Semax briefing, pp. 22, 38, 40"],
+      epi:   ["not", "Not required. FDA found “no clinical data to support the safety” of epitalon in humans.", "FDA epitalon briefing, p. 38"] },
+    hhs: {
+      bpc:   ["not", "Not required. FDA found about 81 people dosed in five studies, by enema, joint, bladder-wall and IV injection, and none by the routes the policy allows.", "FDA BPC-157 briefing, pp. 42–44"],
+      semax: ["part", "Not required, but some data exist for the one route allowed: the studies FDA assessed gave Semax through the nose to 33–47 healthy adults, 69 adults with conditions and 451 children. Seven of the eight didn't discuss adverse events, and FDA found the information “insufficient.”", "FDA Semax briefing, pp. 38–40"],
+      epi:   ["not", "Not required. FDA found “no clinical data to support the safety” of epitalon in humans. Its one randomised trial, of a sublingual spray, “did not report safety data.”", "FDA epitalon briefing, pp. 37–38"] },
+    fda: {
+      all:   ["not", "Approval would require “an integrated summary of all available information about the safety of the drug product.”", "21 CFR 314.50(d)(5)(vi)(a)"] } },
+
+  { key: "maker", what: "Who makes the powder", short: "Maker",
+    ruo: {
+      bpc:   ["not", "Not required. FDA's report on a research-only BPC-157 product names the company on the label, not who made the powder.", "FDA BPC-157 briefing, p. 41"],
+      semax: ["not", "Not required. FDA: “Many of the websites do not describe or clearly state whether the semax products marketed are compounded.”", "FDA Semax briefing, p. 22"],
+      epi:   ["not", "Not required. FDA found websites selling epitalon, “but it is unclear if these are compounded products.”", "FDA epitalon briefing, p. 23"] },
+    hhs: {
+      bpc:   ["part", "The original maker must be registered with FDA, be “in compliance with CGMP” (good manufacturing practice) and have its facility's location on the certificate. I found no public list of registered makers of BPC-157.", "HHS policy, condition 4"],
+      semax: ["part", "The original maker must be registered with FDA, be “in compliance with CGMP” (good manufacturing practice) and have its facility's location on the certificate. I found no public list of registered makers of Semax.", "HHS policy, condition 4"],
+      epi:   ["part", "The original maker must be registered with FDA, be “in compliance with CGMP” (good manufacturing practice) and have its facility's location on the certificate. I found no public list of registered makers of epitalon, and FDA found no pharmacy that compounds it.", "HHS policy, condition 4; FDA epitalon briefing, p. 23"] },
+    fda: {
+      all:   ["not", "Approval would require “the name and address of its manufacturer” in the application, and FDA may refuse approval without “an adequate opportunity to inspect the facilities.”", "21 CFR 314.50(d)(1)(i); 314.125(b)(12)"] } },
+
+  { key: "reporting", what: "Adverse-event reporting", short: "Reporting",
+    ruo: {
+      bpc:   ["not", "No duty. One of FDA's three BPC-157 reports concerns a “research purposes only” product, after which a woman developed “diffuse hyperpigmentation and gingival darkening.”", "FDA BPC-157 briefing, p. 41"],
+      semax: ["not", "No duty. FDA's one Semax report came directly from the consumer, about nasal drops she bought online.", "FDA Semax briefing, p. 38"],
+      epi:   ["not", "No duty. FDA's search of its adverse-event database found no reports for epitalon.", "FDA epitalon briefing, p. 36"] },
+    hhs: {
+      bpc:   ["part", "Serious events must be reported to FDA and the states, “regardless of whether or not considered drug related.” I found no deadline in the text. FDA says 503A compounders “generally do not report adverse events to FDA,” and found three BPC-157 reports.", "HHS policy, condition 5; FDA BPC-157 briefing, p. 41 and fn 66"],
+      semax: ["part", "Serious events must be reported to FDA and the states, “regardless of whether or not considered drug related.” I found no deadline in the text. FDA says 503A compounders “generally do not report adverse events to FDA,” and found one Semax report, from a consumer.", "HHS policy, condition 5; FDA Semax briefing, p. 38 and fn 64"],
+      epi:   ["part", "Serious events must be reported to FDA and the states, “regardless of whether or not considered drug related.” I found no deadline in the text. FDA says 503A compounders “generally do not report adverse events to FDA,” and found none for epitalon.", "HHS policy, condition 5; FDA epitalon briefing, p. 36 and fn 85"] },
+    fda: {
+      all:   ["not", "Approval would bring a duty to report each serious and unexpected event “no later than 15 calendar days” after learning of it, and periodic reports, quarterly for three years.", "21 CFR 314.80(c)(1)(i), (c)(2)(i)"] } }
+];
+
+const RK = Object.keys(ROUTES), PK = Object.keys(PEPTIDES);
+let route = "hhs", pep = "semax";
+const cells = [];
+
+function cell(c, r, p) { const x = c[r][p] || c[r].all; return { s: x[0], t: x[1], src: x[2] }; }
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+function dot(s) { const i = el("i", "dot s-" + s); i.setAttribute("aria-hidden", "true"); return i; }
+function count(r, p) {
+  const n = { met: 0, part: 0, not: 0 };
+  CHECKS.forEach(c => n[cell(c, r, p).s]++);
+  return n;
+}
+
+function buildGrid() {
+  const t = document.getElementById("grid");
+  const head = t.createTHead(), h1 = head.insertRow(), h2 = head.insertRow();
+  const corner = el("th", "corner", "Check"); corner.scope = "col"; corner.rowSpan = 2; h1.appendChild(corner);
+  RK.forEach(r => {
+    const g = el("th", "grp first", ROUTES[r].short); g.scope = "colgroup"; g.colSpan = 3; g.dataset.r = r; h1.appendChild(g);
+    PK.forEach((p, j) => {
+      const h = el("th", "pep" + (j === 0 ? " first" : "")); h.scope = "col"; h.dataset.r = r; h.dataset.p = p;
+      const a = el("abbr", null, PEPTIDES[p].short); a.title = PEPTIDES[p].name; h.appendChild(a); h2.appendChild(h);
+    });
+  });
+  const body = t.createTBody();
+  CHECKS.forEach((c, row) => {
+    const tr = body.insertRow(); cells.push([]);
+    const th = el("th", "rowh", c.short); th.scope = "row"; tr.appendChild(th);
+    RK.forEach(r => PK.forEach((p, j) => {
+      const td = tr.insertCell(); if (j === 0) td.className = "first"; td.dataset.r = r; td.dataset.p = p;
+      const x = cell(c, r, p), label = `${c.what}: ${STATUS[x.s]}. ${PEPTIDES[p].name}, ${ROUTES[r].name}`;
+      const b = el("button", "cell"); b.type = "button"; b.tabIndex = -1; b.title = label;
+      b.setAttribute("aria-label", label);
+      b.dataset.row = row; b.dataset.col = cells[row].length;
+      b.appendChild(dot(x.s));
+      b.addEventListener("click", () => { route = r; pep = p; render(c.key); });
+      b.addEventListener("focus", () => setTabStop(b));
+      td.appendChild(b); cells[row].push(b);
+    }));
+  });
+  // One tab stop for the whole grid; arrow keys move within it.
+  t.addEventListener("keydown", e => {
+    const b = e.target.closest("button.cell"); if (!b) return;
+    let row = +b.dataset.row, col = +b.dataset.col;
+    const last = cells[0].length - 1;
+    if (e.key === "ArrowRight") col = Math.min(last, col + 1);
+    else if (e.key === "ArrowLeft") col = Math.max(0, col - 1);
+    else if (e.key === "ArrowDown") row = Math.min(cells.length - 1, row + 1);
+    else if (e.key === "ArrowUp") row = Math.max(0, row - 1);
+    else if (e.key === "Home") col = 0;
+    else if (e.key === "End") col = last;
+    else return;
+    e.preventDefault(); cells[row][col].focus();
+  });
+  setTabStop(cells[0][RK.indexOf(route) * PK.length + PK.indexOf(pep)]);
+
+  // Under the grid: how many cells are met in full.
+  let met = 0;
+  CHECKS.forEach(c => RK.forEach(r => PK.forEach(p => { if (cell(c, r, p).s === "met") met++; })));
+  if (met === 0) document.getElementById("gridnote").textContent =
+    "No combination meets any check in full. No FDA-approved drug contains any of the three, and the other two routes meet checks in part at most.";
+}
+
+function setTabStop(b) { cells.flat().forEach(x => { x.tabIndex = x === b ? 0 : -1; }); }
+
+function chip(container, label, isOn, onClick) {
+  const b = el("button", "chip", label); b.type = "button";
   b.setAttribute("aria-pressed", isOn ? "true" : "false");
   b.addEventListener("click", onClick);
   container.appendChild(b);
 }
 
-function render() {
-  const r = document.getElementById("routes"); r.innerHTML = "";
-  Object.entries(ROUTES).forEach(([k, v]) => chip(r, k, v, k === route, () => { route = k; render(); }));
-  const p = document.getElementById("peptides"); p.innerHTML = "";
-  Object.entries(PEPTIDES).forEach(([k, v]) => chip(p, k, v.name, k === pep, () => { pep = k; render(); }));
+function render(focusKey) {
+  const rc = document.getElementById("routes"); rc.textContent = "";
+  RK.forEach(k => chip(rc, ROUTES[k].name, k === route, () => { route = k; render(); }));
+  const pc = document.getElementById("peptides"); pc.textContent = "";
+  PK.forEach(k => chip(pc, PEPTIDES[k].name, k === pep, () => { pep = k; render(); }));
 
-  const d = PEPTIDES[pep];
-  document.getElementById("peptide-box").innerHTML =
-    `<div><b>Form the policy covers:</b> ${d.form}</div>` +
-    `<div><b>Routes the policy allows:</b> ${d.routes}</div>` +
-    `<div><b>Humans counted:</b> ${d.humans}</div>` +
-    `<div class="src">${d.src}</div>`;
+  document.querySelectorAll("#grid td, #grid th.pep").forEach(n =>
+    n.classList.toggle("sel", n.dataset.r === route && n.dataset.p === pep));
+  document.querySelectorAll("#grid th.grp").forEach(n => n.classList.toggle("sel", n.dataset.r === route));
 
-  const ul = document.getElementById("checks"); ul.innerHTML = "";
+  const P = PEPTIDES[pep], R = ROUTES[route], n = count(route, pep);
+  document.getElementById("pair-title").textContent = `${P.name} · ${R.name}`;
+  const cs = document.getElementById("counts"); cs.textContent = "";
+  ["met", "part", "not"].forEach(s => {
+    const sp = el("span"); sp.appendChild(dot(s)); sp.appendChild(document.createTextNode(`${STATUS[s]}: ${n[s]}`)); cs.appendChild(sp);
+  });
+  document.getElementById("live").textContent =
+    `${P.name}, ${R.name}: ${n.met} met, ${n.part} partly met, ${n.not} not met, of ${CHECKS.length} checks.`;
+
+  const note = NOTES[route][pep] || NOTES[route].all;
+  const box = document.getElementById("context"); box.textContent = "";
+  box.appendChild(el("p", null, note[0]));
+  box.appendChild(el("p", "src", note[1]));
+  const terms = el("p");
+  terms.appendChild(el("b", null, "Under the HHS policy: "));
+  terms.appendChild(document.createTextNode(`${P.name} ${P.form}, ${P.routes}.`));
+  box.appendChild(terms);
+  box.appendChild(el("p", "src", "HHS policy, Appendix B"));
+
+  const ul = document.getElementById("checks"); ul.textContent = "";
   CHECKS.forEach(c => {
-    const cell = c[route];
-    const li = document.createElement("li");
-    li.innerHTML =
-      `<div class="row"><span class="what">${c.what}</span>` +
-      `<span class="status s-${cell.s}">${STATUS_TEXT[cell.s]}</span></div>` +
-      `<p class="detail">${cell.t.replace(/</g, "&lt;").replace(/&lt;(\/?)(b|i)>/g, "<$1$2>")}</p>` +
-      `<p class="src">${cell.src}</p>`;
+    const x = cell(c, route, pep);
+    const li = el("li"); li.id = "check-" + c.key;
+    const row = el("div", "row");
+    row.appendChild(el("span", "what", c.what));
+    const st = el("span", "status s-" + x.s); st.appendChild(dot(x.s)); st.appendChild(document.createTextNode(STATUS[x.s]));
+    row.appendChild(st);
+    li.appendChild(row);
+    li.appendChild(el("p", "detail", x.t));
+    li.appendChild(el("p", "src", x.src));
     ul.appendChild(li);
   });
+
+  if (focusKey) {
+    const li = document.getElementById("check-" + focusKey);
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    li.scrollIntoView({ block: "nearest", behavior: still ? "auto" : "smooth" });
+    li.classList.add("flash");
+    setTimeout(() => li.classList.remove("flash"), 1400);
+  }
 }
+
+buildGrid();
 render();
 </script>
 </body>
