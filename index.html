@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Three routes to one vial</title>
+<!--
+  "Three routes to one vial": the interactive widget for MadPharma's post on the HHS peptide policy (November 2026).
+  Self-contained: no external scripts or fonts. Every cell carries its source.
+  "Not required" means the route sets no such check; it does not mean nobody checks.
+  Sources: HHS peptide enforcement-discretion policy and Appendix B; FDA Pharmacy Compounding Advisory Committee
+  briefing documents for BPC-157, Semax and epitalon (July 2026); 21 CFR 314.80 and 314.126.
+-->
+<style>
+  :root {
+    --bg: #fbfaf7; --fg: #1f1d1a; --muted: #6b665e; --line: #ddd8cf; --card: #ffffff;
+    --accent: #7a4b2a; --none: #9b3b2f; --part: #8a6a12; --yes: #2f6b45; --chip: #efebe4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #181715; --fg: #ece8e1; --muted: #a39d93; --line: #3a3732; --card: #22201d;
+      --accent: #d29a6c; --none: #e0806f; --part: #d8b85a; --yes: #7cc196; --chip: #2d2a26;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #181715; --fg: #ece8e1; --muted: #a39d93; --line: #3a3732; --card: #22201d;
+    --accent: #d29a6c; --none: #e0806f; --part: #d8b85a; --yes: #7cc196; --chip: #2d2a26;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 16px/1.5 Georgia, "Times New Roman", serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 16px 40px; }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; font-size: .95rem; }
+  .label { font: 600 .75rem/1.2 system-ui, sans-serif; letter-spacing: .06em; text-transform: uppercase;
+           color: var(--muted); margin: 18px 0 8px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  button.chip { font: 500 .9rem/1.2 system-ui, sans-serif; color: var(--fg); background: var(--chip);
+                border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; cursor: pointer; }
+  button.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+  button.chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .peptide { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px;
+             margin-top: 12px; font-size: .95rem; }
+  .peptide b { font-family: system-ui, sans-serif; font-size: .85rem; }
+  ul.checks { list-style: none; padding: 0; margin: 12px 0 0; }
+  ul.checks li { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+                 padding: 12px 14px; margin-bottom: 8px; }
+  .row { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+  .what { font: 600 .95rem/1.3 system-ui, sans-serif; }
+  .status { font: 600 .8rem/1.2 system-ui, sans-serif; padding: 3px 8px; border-radius: 6px;
+            border: 1px solid currentColor; white-space: nowrap; }
+  .s-none { color: var(--none); } .s-part { color: var(--part); } .s-yes { color: var(--yes); }
+  .detail { margin: 6px 0 0; font-size: .95rem; }
+  .src { margin: 4px 0 0; color: var(--muted); font: .78rem/1.4 system-ui, sans-serif; }
+  .foot { color: var(--muted); font: .8rem/1.5 system-ui, sans-serif; margin-top: 18px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Three routes to one vial</h1>
+  <p class="sub">The same peptide can reach a patient three ways. Pick a route to see what each one requires someone to check, and who.</p>
+
+  <div class="label" id="route-label">Route</div>
+  <div class="chips" role="group" aria-labelledby="route-label" id="routes"></div>
+
+  <div class="label" id="pep-label">Peptide</div>
+  <div class="chips" role="group" aria-labelledby="pep-label" id="peptides"></div>
+  <div class="peptide" id="peptide-box" aria-live="polite"></div>
+
+  <ul class="checks" id="checks" aria-live="polite"></ul>
+
+  <p class="foot">"Not required" means the route sets no such check. It doesn't mean nobody ever checks. As of 4 November 2026. Sources: HHS enforcement-discretion policy and Appendix B; FDA briefing documents, Pharmacy Compounding Advisory Committee, 23–24 July 2026; 21 CFR 314.80 and 314.126.</p>
+</main>
+<script>
+const ROUTES = {
+  ruo: "“Research purposes only” website",
+  hhs: "Compounded under the HHS policy",
+  fda: "FDA-approved drug"
+};
+
+// status: none | part | yes
+const CHECKS = [
+  { what: "Identity of the substance",
+    ruo: { s: "none", t: "Not required. FDA found sites that don't say whether they sell the base or a salt.", src: "FDA Semax briefing, p. 22" },
+    hhs: { s: "part", t: "On the supplier's certificate: orthogonal methods, “verified to be the BDS listed.” I found no requirement that the pharmacy retest each lot.", src: "HHS policy, condition 3 and testing standard" },
+    fda: { s: "yes", t: "Set in the approved application, against an agreed specification.", src: "General description; see the post" } },
+  { what: "Impurities",
+    ruo: { s: "none", t: "Not required.", src: "—" },
+    hhs: { s: "part", t: "Criterion: “Comply with ICH Q3A USP <1503>.” ICH Q3A says it doesn't cover peptides.", src: "HHS testing standard; ICH Q3A(R2), section 1" },
+    fda: { s: "yes", t: "Reviewed as part of the application.", src: "General description; see the post" } },
+  { what: "Bacterial endotoxin",
+    ruo: { s: "none", t: "Not required.", src: "—" },
+    hhs: { s: "part", t: "On the certificate: “Comply with USP <85>.”", src: "HHS testing standard" },
+    fda: { s: "yes", t: "Part of the product specification for injectables.", src: "General description; see the post" } },
+  { what: "Evidence that it works",
+    ruo: { s: "none", t: "Not required.", src: "—" },
+    hhs: { s: "none", t: "Not required. HHS: the policy does not “establish clinical safety and effectiveness.”", src: "HHS spokesperson to CBS News, 28 Oct 2026" },
+    fda: { s: "yes", t: "Adequate and well-controlled studies, designed “to distinguish the effect of a drug from other influences.”", src: "21 CFR 314.126(a)" } },
+  { what: "Human safety data",
+    ruo: { s: "none", t: "Not required.", src: "—" },
+    hhs: { s: "none", t: "Not required. FDA's reviewers found none for epitalon, and none for BPC-157 by the routes now allowed.", src: "FDA epitalon briefing, p. 38; BPC-157 briefing, pp. 43–44" },
+    fda: { s: "yes", t: "Reviewed before approval.", src: "General description; see the post" } },
+  { what: "Who makes the powder",
+    ruo: { s: "none", t: "Unknown to the buyer.", src: "—" },
+    hhs: { s: "part", t: "The original manufacturer must be FDA-registered, follow CGMP and be named on the certificate. I found no public list of registered makers for these peptides.", src: "HHS policy, condition 4" },
+    fda: { s: "yes", t: "Named in the application and subject to inspection.", src: "General description; see the post" } },
+  { what: "Adverse-event reporting",
+    ruo: { s: "none", t: "No duty. The one Semax report FDA found came from a consumer.", src: "FDA Semax briefing, p. 38" },
+    hhs: { s: "part", t: "Serious events “regardless of whether or not considered drug related,” to MedWatch. No deadline in the text. FDA: 503A compounders “generally do not report.”", src: "HHS policy, condition 5; FDA briefings, fn 64/66/85" },
+    fda: { s: "yes", t: "Serious and unexpected events within 15 calendar days; periodic reports.", src: "21 CFR 314.80(c)" } }
+];
+
+const PEPTIDES = {
+  bpc: { name: "BPC-157", form: "acetate", routes: "under the skin, into muscle, by mouth, on the skin",
+         humans: "About 81 people in five studies, by enema, joint, bladder-wall and IV injection. None by any route the policy allows.",
+         src: "HHS Appendix B; FDA BPC-157 briefing, p. 42" },
+  semax: { name: "Semax", form: "free base", routes: "in the nose",
+         humans: "33–47 healthy adults, 69 adults with conditions and 451 children in the references FDA assessed, all by the nose. FDA set aside four Russian stroke papers as untranslated.",
+         src: "HHS Appendix B; FDA Semax briefing, pp. 24, 38" },
+  epi: { name: "Epitalon", form: "acetate", routes: "injection under the skin or into muscle, “in intermittent courses”",
+         humans: "FDA found no clinical studies of its safety in humans. Its one randomised trial used a sublingual spray.",
+         src: "HHS Appendix B; FDA epitalon briefing, pp. 26, 38" }
+};
+
+const STATUS_TEXT = { none: "Not required", part: "Partly", yes: "Required" };
+let route = "hhs", pep = "semax";
+
+function chip(container, key, label, isOn, onClick) {
+  const b = document.createElement("button");
+  b.className = "chip"; b.type = "button"; b.textContent = label;
+  b.setAttribute("aria-pressed", isOn ? "true" : "false");
+  b.addEventListener("click", onClick);
+  container.appendChild(b);
+}
+
+function render() {
+  const r = document.getElementById("routes"); r.innerHTML = "";
+  Object.entries(ROUTES).forEach(([k, v]) => chip(r, k, v, k === route, () => { route = k; render(); }));
+  const p = document.getElementById("peptides"); p.innerHTML = "";
+  Object.entries(PEPTIDES).forEach(([k, v]) => chip(p, k, v.name, k === pep, () => { pep = k; render(); }));
+
+  const d = PEPTIDES[pep];
+  document.getElementById("peptide-box").innerHTML =
+    `<div><b>Form the policy covers:</b> ${d.form}</div>` +
+    `<div><b>Routes the policy allows:</b> ${d.routes}</div>` +
+    `<div><b>Humans counted:</b> ${d.humans}</div>` +
+    `<div class="src">${d.src}</div>`;
+
+  const ul = document.getElementById("checks"); ul.innerHTML = "";
+  CHECKS.forEach(c => {
+    const cell = c[route];
+    const li = document.createElement("li");
+    li.innerHTML =
+      `<div class="row"><span class="what">${c.what}</span>` +
+      `<span class="status s-${cell.s}">${STATUS_TEXT[cell.s]}</span></div>` +
+      `<p class="detail">${cell.t.replace(/</g, "&lt;").replace(/&lt;(\/?)(b|i)>/g, "<$1$2>")}</p>` +
+      `<p class="src">${cell.src}</p>`;
+    ul.appendChild(li);
+  });
+}
+render();
+</script>
+</body>
+</html>
